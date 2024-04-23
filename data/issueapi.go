@@ -9,66 +9,83 @@ import (
 	graphql "github.com/cli/shurcooL-graphql"
 )
 
-type IssueData struct {
-	Number int
-	Title  string
-	Body   string
-	State  string
-	Author struct {
-		Login string
-	}
-	UpdatedAt  time.Time
-	Url        string
-	Repository Repository
-	Assignees  Assignees      `graphql:"assignees(first: 3)"`
-	Comments   IssueComments  `graphql:"comments(first: 15)"`
-	Reactions  IssueReactions `graphql:"reactions(first: 1)"`
-	Labels     IssueLabels    `graphql:"labels(first: 3)"`
+type StackStatus string
+
+const (
+	StatusAll       StackStatus = "all"
+	StatusUnhealthy StackStatus = "unhealthy"
+	StatusHealthy   StackStatus = "healthy"
+	StatusDrifted   StackStatus = "drifted"
+	StatusFailed    StackStatus = "failed"
+	StatusOK        StackStatus = "ok"
+)
+
+type DeploymentStatus string
+
+const (
+	DeploymentCanceled DeploymentStatus = "canceled"
+	DeploymentFailed   DeploymentStatus = "failed"
+	DeploymentOK       DeploymentStatus = "ok"
+	DeploymentPending  DeploymentStatus = "pending"
+	DeploymentRunning  DeploymentStatus = "running"
+)
+
+type DriftStatus string
+
+const (
+	DriftOK      DriftStatus = "ok"
+	DriftDrifted DriftStatus = "drifted"
+	DriftFailed  DriftStatus = "failed"
+)
+
+type StackData struct {
+	StackID          int              `json:"stack_id"`
+	Repository       string           `json:"repository"`
+	Path             string           `json:"path"`
+	DefaultBranch    string           `json:"default_branch"`
+	MetaID           string           `json:"meta_id"`
+	MetaName         string           `json:"meta_name"`
+	MetaDescription  string           `json:"meta_description"`
+	MetaTags         []string         `json:"meta_tags"`
+	Status           StackStatus      `json:"status"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
+	SeenAt           time.Time        `json:"seen_at"`
+	DeploymentStatus DeploymentStatus `json:"deployment_status"`
+	DriftStatus      DriftStatus      `json:"drift_status"`
+	Draft            bool             `json:"draft"`
 }
 
-type IssueComments struct {
-	Nodes      []IssueComment
-	TotalCount int
+type StackAPIResponse struct {
+	Stacks          []StackData `json:"stacks"`
+	PaginatedResult struct {
+		Total   int `json:"total"`
+		Page    int `json:"page"`
+		PerPage int `json:"per_page"`
+	} `json:"paginated_result"`
 }
 
-type IssueComment struct {
-	Author struct {
-		Login string
-	}
-	Body      string
-	UpdatedAt time.Time
+func (data StackData) GetTitle() string {
+	return data.MetaName
 }
 
-type IssueReactions struct {
-	TotalCount int
+//	func (data IssueData) GetRepoNameWithOwner() string {
+//		return data.Repository.NameWithOwner
+//	}
+func (data StackData) GetRepoName() string {
+	return data.Repository
 }
 
-type Label struct {
-	Color string
-	Name  string
+func (data StackData) GetNumber() int {
+	return data.StackID
 }
 
-type IssueLabels struct {
-	Nodes []Label
+func (data StackData) GetUrl() string {
+	url := fmt.Sprintf("https://cloud.terramate.io/o/RocketRene/stacks/%d", data.StackID)
+	return url
 }
 
-func (data IssueData) GetTitle() string {
-	return data.Title
-}
-
-func (data IssueData) GetRepoNameWithOwner() string {
-	return data.Repository.NameWithOwner
-}
-
-func (data IssueData) GetNumber() int {
-	return data.Number
-}
-
-func (data IssueData) GetUrl() string {
-	return data.Url
-}
-
-func (data IssueData) GetUpdatedAt() time.Time {
+func (data StackData) GetUpdatedAt() time.Time {
 	return data.UpdatedAt
 }
 
@@ -123,8 +140,54 @@ func FetchIssues(query string, limit int, pageInfo *PageInfo) (IssuesResponse, e
 	}, nil
 }
 
-type IssuesResponse struct {
-	Issues     []IssueData
-	TotalCount int
-	PageInfo   PageInfo
+/* func fetchStacks(client *http.Client, token string) ([]Stack, error) {
+	request, err := http.NewRequest("GET", "http://api.terramate.io/v1/stacks/5fbadfe9-b35b-4352-aadf-b03ee7a0a0c0", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var apiResponse StackAPIResponse
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		return nil, err
+	}
+
+	sort.Slice(apiResponse.Stacks, func(i, j int) bool {
+		return apiResponse.Stacks[i].UpdatedAt.After(apiResponse.Stacks[j].UpdatedAt)
+	})
+
+	return apiResponse.Stacks, nil
+
 }
+
+
+// Auth
+type CredentialData struct {
+	IDToken string `json:"id_token"`
+}
+
+func LoadCredentials(filepath string) (string, error) {
+	var creds CredentialData
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return "", err
+	}
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return "", err
+	}
+	return creds.IDToken, nil
+}
+
+
+
+
+
+
+
+*/
