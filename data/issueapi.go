@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -65,6 +66,9 @@ type StackAPIResponse struct {
 	} `json:"paginated_result"`
 }
 
+func (data StackData) FilterValue() string {
+	return fmt.Sprintf("%s %s %s", data.MetaName, data.Status, data.Repository)
+}
 func (data StackData) GetTitle() string {
 	return data.MetaName
 }
@@ -93,21 +97,26 @@ func makeIssuesQuery(query string) string {
 	return fmt.Sprintf("is:issue %s sort:updated", query)
 }
 
-func FetchIssues(query string, limit int, pageInfo *PageInfo) (IssuesResponse, error) {
-	var err error
+func FetchStack(query, token string, limit int, pageInfo *PageInfo) ([]StackData, error) {
+	request, err := http.NewRequest("GET", "http://api.terramate.io/v1/stacks/5fbadfe9-b35b-4352-aadf-b03ee7a0a0c0", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+token)
+
 	client, err := gh.DefaultGraphQLClient()
 	if err != nil {
-		return IssuesResponse{}, err
+		return nil, err
 	}
 
 	var queryResult struct {
 		Search struct {
 			Nodes []struct {
-				Issue IssueData `graphql:"... on Issue"`
+				Stack StackData `graphql:"... on Stack"`
 			}
-			IssueCount int
+			StackCount int
 			PageInfo   PageInfo
-		} `graphql:"search(type: ISSUE, first: $limit, after: $endCursor, query: $query)"`
+		} `graphql:"search(type: STACK, first: $limit, after: $endCursor, query: $query)"`
 	}
 	var endCursor *string
 	if pageInfo != nil {
@@ -119,25 +128,17 @@ func FetchIssues(query string, limit int, pageInfo *PageInfo) (IssuesResponse, e
 		"endCursor": (*graphql.String)(endCursor),
 	}
 	log.Debug("Fetching issues", "query", query, "limit", limit, "endCursor", endCursor)
-	err = client.Query("SearchIssues", &queryResult, variables)
+	err = client.Query("SearchStacks", &queryResult, variables)
 	if err != nil {
-		return IssuesResponse{}, err
+		return nil, err
 	}
-	log.Debug("Successfully fetched issues", "query", query, "count", queryResult.Search.IssueCount)
+	log.Debug("Erfolgreich Stacks abgerufen", "query", query, "count", queryResult.Search.StackCount)
 
-	issues := make([]IssueData, 0, len(queryResult.Search.Nodes))
+	stacks := make([]StackData, 0, len(queryResult.Search.Nodes))
 	for _, node := range queryResult.Search.Nodes {
-		if node.Issue.Repository.IsArchived {
-			continue
-		}
-		issues = append(issues, node.Issue)
+		stacks = append(stacks, node.Stack)
 	}
-
-	return IssuesResponse{
-		Issues:     issues,
-		TotalCount: queryResult.Search.IssueCount,
-		PageInfo:   queryResult.Search.PageInfo,
-	}, nil
+	return []StackData(stacks), nil
 }
 
 /* func fetchStacks(client *http.Client, token string) ([]Stack, error) {
